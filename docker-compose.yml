@@ -1,0 +1,96 @@
+name: sepahtan-reporting
+
+services:
+  trino:
+    image: trinodb/trino:482
+    container_name: Sepahtan.Reporting.Trino
+    env_file:
+      - .env
+    ports:
+      - "${TRINO_HOST_PORT:-8800}:8080"
+    volumes:
+      - ./trino/etc:/etc/trino:ro
+      - trino_data:/data/trino
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/v1/info >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - reporting
+
+  superset-db:
+    image: postgres:17-alpine
+    container_name: Sepahtan.Reporting.Superset.Database
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${SUPERSET_METADATA_DATABASE:-superset}
+      POSTGRES_USER: ${SUPERSET_METADATA_USER:-superset}
+      POSTGRES_PASSWORD: ${SUPERSET_METADATA_PASSWORD}
+    volumes:
+      - superset_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SUPERSET_METADATA_USER:-superset} -d ${SUPERSET_METADATA_DATABASE:-superset}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+    networks:
+      - reporting
+
+  superset-init:
+    build:
+      context: ./superset
+      args:
+        SUPERSET_VERSION: ${SUPERSET_VERSION:-6.0.0}
+    image: sepahtan-superset:${SUPERSET_VERSION:-6.0.0}
+    container_name: Sepahtan.Reporting.Superset.Init
+    env_file:
+      - .env
+    depends_on:
+      trino:
+        condition: service_healthy
+      superset-db:
+        condition: service_healthy
+    command: ["/app/superset-init.sh"]
+    restart: "no"
+    networks:
+      - reporting
+
+  superset:
+    build:
+      context: ./superset
+      args:
+        SUPERSET_VERSION: ${SUPERSET_VERSION:-6.0.0}
+    image: sepahtan-superset:${SUPERSET_VERSION:-6.0.0}
+    container_name: Sepahtan.Reporting.Superset
+    env_file:
+      - .env
+    depends_on:
+      superset-init:
+        condition: service_completed_successfully
+    ports:
+      - "${SUPERSET_HOST_PORT:-8888}:8088"
+    volumes:
+      - superset_home:/app/superset_home
+    healthcheck:
+      test: ["CMD", "/app/.venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8088/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - reporting
+
+networks:
+  reporting:
+    name: sepahtan-reporting
+
+volumes:
+  trino_data:
+  superset_db_data:
+  superset_home:
