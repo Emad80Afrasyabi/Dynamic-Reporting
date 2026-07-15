@@ -1,0 +1,9 @@
+Wrapper for reportManagement:
+
+Adding component in superset
+Redirect to a page to see only the reports that we already have based on user permission that have in the tocken
+Redirect to a page to see the designer page of superset to create his own reports based on the permission that he has
+overall I want to know how should I design the report management microservice and this wrapper microservice should consider what exactly?
+
+how should I design it and what end-points of the superset should I use?
+how should I redirect to the superset page to not see the headers and menu of superset to not be able to do other stuff except the things that user have access to, for example only seeing the reports and to be able to see other stuff by changing the URL and ...
